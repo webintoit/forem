@@ -1,0 +1,107 @@
+x-environment: &env
+  FOREM_OWNER_SECRET: 123456
+  WEB_CONCURRENCY: 2
+  APP_PROTOCOL: https://
+  DATABASE_POOL_SIZE: 10
+  DATABASE_URL: postgresql://drive4:drivefour@192.168.2.121/drive4community
+  FORCE_SSL_IN_RAILS: "false"
+  FOREM_CONTEXT: selfhost
+  LANG: en_US.UTF-8
+  LOG_LEVEL: info
+  NODE_ENV: production
+  RACK_ENV: production
+  RAILS_ENV: production
+  RAILS_LOG_TO_STDOUT: "true"
+  RAILS_SERVE_STATIC_FILES: "true"
+  REDIS_URL: redis://redis:6379
+  SESSION_EXPIRY_SECONDS: 12000
+  SESSION_KEY: iLoveKoreanKimchi991
+  DEFAULT_EMAIL: feedback@drive4.com.ua
+  #RECAPTCHA_SECRET: 
+  #RECAPTCHA_SITE: { recaptcha_site }}
+  #SENDGRID_API_KEY: { sendgrid_api_key }}
+  #SENDGRID_API_KEY_ID: { sendgrid_api_key_id }}
+  #SLACK_CHANNEL: { slack_channel }}
+  #SLACK_WEBHOOK_URL: { slack_webhook_url }}
+  APP_DOMAIN: drive4.com.ua
+  # IMGPROXY_KEY: 1b1c9aae804e070b0864f2547fba7ce8ff31bf7aaaaaabbbbccccdddd
+  # IMGPROXY_SALT: 8c6d449d4fc2cada5bab538826cae709d2ade9e8aaaabbbbccccdddd
+  # IMGPROXY_ENDPOINT: http://imgproxy:8080
+  SECRET_KEY_BASE: 8c6d449d4fc2cada5bab538826cae70864f2547fba7ce8ff3109d2
+  FASTLY_CDN_URL: https://drive4.com.ua
+
+services:
+  rails:
+    pull_policy: never
+    image: backend
+    build:
+      target: production
+      context: .
+    volumes:
+      - assets:/app/public/assets
+    environment:
+      <<: *env
+    command: bundle exec rails
+    depends_on:
+      - imgproxy
+
+  imgproxy:
+    image: darthsim/imgproxy:latest
+    ports:
+      - '8080:8080'
+    environment:
+      IMGPROXY_KEY: 1b1c9aae804e070b0864f2547fba7ce8ff31bf7aaaaaabbbbccccdddd
+      IMGPROXY_SALT: 8c6d449d4fc2cada5bab538826cae709d2ade9e8aaaabbbbccccdddd
+
+  web:
+    image: backend
+    pull_policy: never
+    command: bundle exec rails server -b 0.0.0.0
+    volumes:
+      - assets:/app/public/assets
+    environment:
+      <<: *env
+    ports:
+      - '3000:3000'
+    depends_on:
+      - sidekiq
+      - redis
+      - imgproxy
+
+  redis:
+    image: redis:6.0.9-alpine
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    container_name: forem_redis
+    ports:
+      - "6379:6379"
+
+  sidekiq:
+    image: backend
+    pull_policy: never
+    volumes:
+      - assets:/app/public/assets
+    environment:
+      <<: *env
+    command: bundle exec sidekiq
+
+  # esbuild:
+  #   <<: *app
+  #   command: yarn build --watch
+  #   volumes:
+  #     - ${LOCAL_WORKSPACE_FOLDER:-.}:/app:cached
+  #     - bundle:/usr/local/bundle
+  #     - node_modules:/app/node_modules
+  #     - builds:/app/assets/builds
+  #   environment:
+  #     <<: *env
+  #     WEBPACKER_DEV_SERVER_HOST: 0.0.0.0
+  #     YARN_CACHE_FOLDER: /app/node_modules/.yarn-cache
+
+volumes:
+  assets:
+
